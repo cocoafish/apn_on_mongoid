@@ -44,7 +44,7 @@ module APN
     def apple_hash
       result = {}
       result['aps'] = {}
-      result['aps']['alert'] = self.alert.force_encoding("UTF-8") if self.alert
+      result['aps']['alert'] = self.alert if self.alert
       result['aps']['badge'] = self.badge.to_i if self.badge
       if self.sound
         result['aps']['sound'] = self.sound if self.sound.is_a? String
