@@ -22,15 +22,6 @@ module APN
       self.subscription.device
     end
     
-    # Gets the subscription which is embedded in the device collection.
-    #
-    # This will have to do until Mongoid implements a better search for
-    # embeded items.
-    def subscription
-      device = APN::Device.where(:subscriptions => {'$elemMatch' => { :_id => self.subscription_id }}).first
-      device.subscriptions.where(:_id => self.subscription_id).first
-    end
-    
     # Stores the text alert message you want to send to the device.
     # 
     # If the message is over 150 characters long it will get truncated
@@ -53,7 +44,7 @@ module APN
     def apple_hash
       result = {}
       result['aps'] = {}
-      result['aps']['alert'] = self.alert if self.alert
+      result['aps']['alert'] = self.alert.force_encoding("UTF-8") if self.alert
       result['aps']['badge'] = self.badge.to_i if self.badge
       if self.sound
         result['aps']['sound'] = self.sound if self.sound.is_a? String
@@ -78,10 +69,14 @@ module APN
     # Creates the binary message needed to send to Apple.
     # see http://developer.apple.com/IPhone/library/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/CommunicatingWIthAPS/CommunicatingWIthAPS.html#//apple_ref/doc/uid/TP40008194-CH101-SW4
     def message_for_sending
-      json = self.to_apple_json
+      json = self.to_apple_json.force_encoding("BINARY")
+      message = "\0\0 #{self.subscription.to_hexa}\0#{json.length.chr}#{json}"
       raise APN::Errors::ExceededMessageSizeError.new(json) if json.size.to_i > APN::Errors::ExceededMessageSizeError::MAX_BYTES
-
-      "\0\0 #{self.subscription.to_hexa}\0#{(json.length).chr}#{json}"
+      
+#      [0, 32, self.subscription.token.delete(' '), json.length, json ].pack("CnH*na*")
+#      "\0\0 #{self.subscription.to_hexa}\0#{(json.length).chr}#{json}"
+#      [0, 0, self.subscription.token.delete(' ').size, self.subscription.token.delete(' '), 0, json.length, json].pack("ccca*cca*")
+      message
     end
     
     # Deliver the current notification
